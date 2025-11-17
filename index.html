@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hominify - Müzik Uygulaması</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    :root {
+      --bg-color: #121212;
+      --sidebar-color: #000000;
+      --text-color: #ffffff;
+      --text-secondary: #b3b3b3;
+      --primary-color: #1DB954;
+      --card-bg: #181818;
+      --hover-color: #282828;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      height: 100vh;
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      grid-template-rows: 64px 1fr 90px;
+      grid-template-areas:
+        "sidebar header"
+        "sidebar main"
+        "player player";
+    }
+
+    /* Sidebar */
+    .sidebar {
+      grid-area: sidebar;
+      background-color: var(--sidebar-color);
+      padding: 24px 12px;
+      overflow-y: auto;
+    }
+
+    .logo {
+      padding: 0 12px 18px;
+      font-size: 24px;
+      font-weight: bold;
+      color: var(--primary-color);
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      margin: 4px 0;
+      border-radius: 4px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .nav-item i {
+      margin-right: 16px;
+      font-size: 20px;
+    }
+
+    .nav-item:hover, .nav-item.active {
+      color: var(--text-color);
+      background-color: var(--hover-color);
+    }
+
+    .nav-item.active {
+      color: var(--primary-color);
+    }
+
+    .playlists {
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid #282828;
+    }
+
+    .playlists h3 {
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-secondary);
+    }
+
+    /* Header */
+    .header {
+      grid-area: header;
+      background-color: rgba(0, 0, 0, 0.6);
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 10;
+    }
+
+    .search-bar {
+      flex: 0 1 400px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+    }
+
+    .search-bar i {
+      color: var(--text-secondary);
+      margin-right: 8px;
+    }
+
+    .search-bar input {
+      background: transparent;
+      border: none;
+      color: white;
+      width: 100%;
+      outline: none;
+    }
+
+    .user-menu {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+ 
+    .spotify-login-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 16px;
+      border: 1px solid var(--primary-color);
+      color: var(--primary-color);
+      font-size: 13px;
+    }
+
+    .spotify-login-btn.connected {
+      background-color: var(--primary-color);
+      color: #000;
+    }
+
+    .spotify-login-btn i {
+      font-size: 16px;
+    }
+
+    .user-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background-color: #535353;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    /* Main Content */
+    .main-content {
+      grid-area: main;
+      padding: 24px 32px;
+      overflow-y: auto;
+    }
+
+    .greeting {
+      margin-bottom: 24px;
+    }
+
+    .greeting h1 {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+
+    .greeting p {
+      color: var(--text-secondary);
+    }
+
+    .section {
+      margin-bottom: 32px;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      font-size: 24px;
+    }
+
+    .see-all {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .see-all:hover {
+      text-decoration: underline;
+      color: var(--text-color);
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 24px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 8px;
+      padding: 16px;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .card:hover {
+      background: #282828;
+    }
+
+    .card-img {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 4px;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .card-text {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* Player */
+    .player {
+      grid-area: player;
+      background: #181818;
+      border-top: 1px solid #282828;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 16px;
+      z-index: 100;
+    }
+
+    .now-playing {
+      display: flex;
+      align-items: center;
+      width: 30%;
+    }
+
+    .now-playing-img {
+      width: 56px;
+      height: 56px;
+      border-radius: 4px;
+      margin-right: 12px;
+    }
+
+    .song-info {
+      min-width: 0;
+    }
+
+    .song-title {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .song-artist {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .player-controls {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 40%;
+    }
+
+    .control-buttons {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .control-btn {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 16px;
+      margin: 0 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .control-btn:hover {
+      color: var(--text-color);
+    }
+
+    .control-btn.play-pause {
+      background: white;
+      color: black;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .control-btn.play-pause:hover {
+      transform: scale(1.05);
+      color: black;
+    }
+
+    .progress-container {
+      width: 100%;
+      display: flex;
+      align-items: center;
+    }
+
+    .time {
+      font-size: 11px;
+      color: var(--text-secondary);
+      min-width: 40px;
+      text-align: center;
+    }
+
+    .progress-bar {
+      flex: 1;
+      height: 4px;
+      background: #404040;
+      border-radius: 2px;
+      margin: 0 8px;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .progress {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      background: var(--text-secondary);
+      border-radius: 2px;
+      width: 0%;
+    }
+
+    .volume-controls {
+      display: flex;
+      align-items: center;
+      width: 30%;
+      justify-content: flex-end;
+    }
+
+    .volume-slider {
+      width: 100px;
+      margin: 0 8px;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      body {
+        grid-template-columns: 1fr;
+        grid-template-rows: 64px 1fr 90px;
+        grid-template-areas:
+          "header"
+          "main"
+          "player";
+      }
+
+      .sidebar {
+        display: none;
+      }
+
+      .search-bar {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="logo">Hominify</div>
+    <nav>
+      <a href="#" class="nav-item active">
+        <i class="fas fa-home"></i>
+        <span>Ana Sayfa</span>
+      </a>
+      <a href="#" class="nav-item">
+        <i class="fas fa-search"></i>
+        <span>Ara</span>
+      </a>
+      <a href="#" class="nav-item">
+        <i class="fas fa-book"></i>
+        <span>Kitaplığım</span>
+      </a>
+      <a href="#" class="nav-item">
+        <i class="fas fa-plus-square"></i>
+        <span>Çalma Listesi Oluştur</span>
+      </a>
+      <a href="#" class="nav-item">
+        <i class="fas fa-heart"></i>
+        <span>Beğenilen Şarkılar</span>
+      </a>
+      <a href="#" class="nav-item">
+        <i class="fas fa-download"></i>
+        <span>İndirilenler</span>
+      </a>
+    </nav>
+
+    <div class="playlists" id="library-list">
+      <!-- Spotify kitaplık burada dinamik olarak doldurulacak -->
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="search-bar">
+      <i class="fas fa-search"></i>
+      <input type="text" placeholder="Ne dinlemek istersiniz?">
+    </div>
+    <div class="user-menu">
+      <button class="control-btn spotify-login-btn">
+        <i class="fab fa-spotify"></i>
+        <span class="spotify-login-text">Spotify ile giriş</span>
+      </button>
+      <button class="control-btn">
+        <i class="fas fa-bell"></i>
+      </button>
+      <div class="user-avatar">K</div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <div class="greeting">
+      <h1>İyi akşamlar</h1>
+      <p>Bugün ne dinlemek istersiniz?</p>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title">En son dinledikleriniz</h2>
+        <a href="#" class="see-all">TÜMÜNÜ GÖSTER</a>
+      </div>
+      <div class="card-grid" id="liked-tracks">
+        <!-- Spotify beğenilen şarkılar burada listelenecek -->
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title">Senin için derlediklerimiz</h2>
+        <a href="#" class="see-all">TÜMÜNÜ GÖSTER</a>
+      </div>
+      <div class="card-grid" id="playlists-grid">
+        <!-- Spotify çalma listeleri burada listelenecek -->
+      </div>
+    </div>
+  </main>
+
+  <!-- Player -->
+  <div class="player">
+    <div class="now-playing">
+      <img src="https://i.scdn.co/image/ab67616d00001e02ff9ca10b55ce82ae553c8228" class="now-playing-img">
+      <div class="song-info">
+        <div class="song-title">Dünya Hali</div>
+        <div class="song-artist">Pinhani</div>
+      </div>
+      <button class="control-btn">
+        <i class="far fa-heart"></i>
+      </button>
+    </div>
+
+    <div class="player-controls">
+      <div class="control-buttons">
+        <button class="control-btn">
+          <i class="fas fa-random"></i>
+        </button>
+        <button class="control-btn">
+          <i class="fas fa-step-backward"></i>
+        </button>
+        <button class="control-btn play-pause">
+          <i class="fas fa-play"></i>
+        </button>
+        <button class="control-btn">
+          <i class="fas fa-step-forward"></i>
+        </button>
+        <button class="control-btn download-btn">
+          <i class="fas fa-download"></i>
+        </button>
+        <button class="control-btn">
+          <i class="fas fa-redo"></i>
+        </button>
+      </div>
+      <div class="progress-container">
+        <span class="time">1:23</span>
+        <div class="progress-bar">
+          <div class="progress" style="width: 30%"></div>
+        </div>
+        <span class="time">4:32</span>
+      </div>
+    </div>
+
+    <div class="volume-controls">
+      <button class="control-btn">
+        <i class="fas fa-list"></i>
+      </button>
+      <button class="control-btn">
+        <i class="fas fa-volume-up"></i>
+      </button>
+      <input type="range" class="volume-slider" min="0" max="100" value="70">
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
