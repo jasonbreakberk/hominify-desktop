@@ -1,4 +1,15 @@
-# Node / Electron
+node_modules/
+dist/
+.env
+.DS_Store
+.vscode/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+/.idea/
+build/
+coverage/# Node / Electron
 node_modules/
 npm-debug.log*
 yarn-debug.log*

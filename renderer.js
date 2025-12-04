@@ -5,7 +5,6 @@ const http = require('http');
 const https = require('https');
 const querystring = require('querystring');
 const axios = require('axios');
-const ytdl = require('ytdl-core');
 const os = require('os');
 require('dotenv').config();
 
@@ -28,49 +27,58 @@ const appState = {
   playlists: [],
   audioServer: null,
   audioServerPort: null,
-  spotifyUser: null
+  spotifyUser: null,
+  offlineTracks: [],
+  currentVideoId: null
 };
 
-// DOM elementleri
+// DOM elementleri (güvenli seçimler)
+const _prevIcon = document.querySelector('.fa-step-backward');
+const _nextIcon = document.querySelector('.fa-step-forward');
+const _shuffleIcon = document.querySelector('.fa-random');
+const _repeatIcon = document.querySelector('.fa-redo');
+const _likeIcon = document.querySelector('.fa-heart');
+const _volumeIcon = document.querySelector('.fa-volume-up');
+
 const elements = {
   // Çalma kontrolleri
   playPauseBtn: document.querySelector('.play-pause'),
-  prevBtn: document.querySelector('.fa-step-backward').parentElement,
-  nextBtn: document.querySelector('.fa-step-forward').parentElement,
-  shuffleBtn: document.querySelector('.fa-random').parentElement,
-  repeatBtn: document.querySelector('.fa-redo').parentElement,
-  
+  prevBtn: _prevIcon ? _prevIcon.parentElement : null,
+  nextBtn: _nextIcon ? _nextIcon.parentElement : null,
+  shuffleBtn: _shuffleIcon ? _shuffleIcon.parentElement : null,
+  repeatBtn: _repeatIcon ? _repeatIcon.parentElement : null,
+
   // Şarkı bilgileri
   nowPlayingImg: document.querySelector('.now-playing-img'),
   songTitle: document.querySelector('.song-title'),
   songArtist: document.querySelector('.song-artist'),
-  likeBtn: document.querySelector('.fa-heart').parentElement,
-  
+  likeBtn: _likeIcon ? _likeIcon.parentElement : null,
+
   // İlerleme çubuğu
   progressBar: document.querySelector('.progress-bar'),
   progress: document.querySelector('.progress'),
   currentTimeEl: document.querySelector('.time:first-child'),
   totalTimeEl: document.querySelector('.time:last-child'),
-  
+
   // Ses kontrolü
-  volumeBtn: document.querySelector('.fa-volume-up').parentElement,
+  volumeBtn: _volumeIcon ? _volumeIcon.parentElement : null,
   volumeSlider: document.querySelector('.volume-slider'),
-  
+
   // Arama çubuğu
   searchInput: document.querySelector('.search-bar input'),
-  
+
   // Spotify
   spotifyLoginBtn: document.querySelector('.spotify-login-btn'),
   spotifyLoginText: document.querySelector('.spotify-login-text'),
   downloadBtn: document.querySelector('.download-btn'),
   userAvatar: document.querySelector('.user-avatar'),
-  
+
   // Kitaplık & gridler
   libraryList: document.getElementById('library-list'),
   likedGrid: document.getElementById('liked-tracks'),
   playlistsGrid: document.getElementById('playlists-grid'),
   mainSectionTitle: document.querySelector('.section .section-title'),
-  
+
   // Ana içerik alanı
   cards: document.querySelectorAll('.card')
 };
@@ -148,7 +156,8 @@ function mapSpotifyTrack(track) {
     artist: artists,
     image,
     previewUrl: track.preview_url || null,
-    spotifyUri: track.uri
+    spotifyUri: track.uri,
+    externalUrl: track.external_urls?.spotify || null
   };
 }
 
@@ -167,7 +176,7 @@ function mapSpotifyPlaylist(playlist) {
   };
 }
 
-async function fetchSpotifyLikedTracks() {
+async function fetchSpotifyLikedTracks(isRetry = false) {
   if (!appState.spotifyAccessToken) return [];
 
   try {
@@ -182,17 +191,30 @@ async function fetchSpotifyLikedTracks() {
     appState.likedTracks = items
       .filter(item => item && item.track)
       .map(item => mapSpotifyTrack(item.track))
-      .filter(Boolean);
+      .filter(Boolean); // Tüm şarkıları listele; preview yoksa YouTube'a düşer
+
+    const previewCount = appState.likedTracks.length;
+    console.log(
+      `Beğenilen ${appState.likedTracks.length} şarkı yüklendi. ${previewCount} tanesinde preview_url var.`
+    );
 
     renderLikedTracks();
     return appState.likedTracks;
   } catch (err) {
     console.error('Spotify liked tracks error:', err.response?.data || err);
+    const status = err.response?.status;
+    if (status === 401 && !isRetry) {
+      const refreshed = await refreshSpotifyToken();
+      if (refreshed) {
+        return await fetchSpotifyLikedTracks(true);
+      }
+      handleLogout();
+    }
     return [];
   }
 }
 
-async function fetchSpotifyPlaylists() {
+async function fetchSpotifyPlaylists(isRetry = false) {
   if (!appState.spotifyAccessToken) return [];
 
   try {
@@ -211,11 +233,19 @@ async function fetchSpotifyPlaylists() {
     return appState.playlists;
   } catch (err) {
     console.error('Spotify playlists error:', err.response?.data || err);
+    const status = err.response?.status;
+    if (status === 401 && !isRetry) {
+      const refreshed = await refreshSpotifyToken();
+      if (refreshed) {
+        return await fetchSpotifyPlaylists(true);
+      }
+      handleLogout();
+    }
     return [];
   }
 }
 
-async function fetchSpotifyPlaylistTracks(playlistId, playlistName) {
+async function fetchSpotifyPlaylistTracks(playlistId, playlistName, isRetry = false) {
   if (!appState.spotifyAccessToken || !playlistId) return [];
 
   try {
@@ -242,6 +272,14 @@ async function fetchSpotifyPlaylistTracks(playlistId, playlistName) {
     return tracks;
   } catch (err) {
     console.error('Spotify playlist tracks error:', err.response?.data || err);
+    const status = err.response?.status;
+    if (status === 401 && !isRetry) {
+      const refreshed = await refreshSpotifyToken();
+      if (refreshed) {
+        return await fetchSpotifyPlaylistTracks(playlistId, playlistName, true);
+      }
+      handleLogout();
+    }
     return [];
   }
 }
@@ -394,7 +432,7 @@ async function loadSpotifyLibrary() {
   await fetchSpotifyUserProfile();
 }
 
-async function fetchSpotifyUserProfile() {
+async function fetchSpotifyUserProfile(isRetry = false) {
   if (!appState.spotifyAccessToken) return;
 
   try {
@@ -406,6 +444,14 @@ async function fetchSpotifyUserProfile() {
     updateUserAvatar();
   } catch (err) {
     console.error('Spotify user profile error:', err.response?.data || err);
+    const status = err.response?.status;
+    if (status === 401 && !isRetry) {
+      const refreshed = await refreshSpotifyToken();
+      if (refreshed) {
+        return await fetchSpotifyUserProfile(true);
+      }
+      handleLogout();
+    }
   }
 }
 
@@ -472,7 +518,15 @@ function initUserMenu() {
     }
 
     item.addEventListener('click', () => {
-      if (action === 'logout') {
+      if (action === 'profile') {
+        const user = appState.spotifyUser;
+        const url = (user && user.external_urls && user.external_urls.spotify)
+          ? user.external_urls.spotify
+          : 'https://open.spotify.com/';
+        shell.openExternal(url);
+      } else if (action === 'settings') {
+        shell.openExternal('https://www.spotify.com/account/overview/');
+      } else if (action === 'logout') {
         handleLogout();
       }
       userMenuEl.style.display = 'none';
@@ -543,109 +597,41 @@ function updatePlayPauseButton() {
 
 async function getYoutubeAudioUrl(videoId) {
   try {
-    const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`);
-    const format = ytdl.chooseFormat(info.formats, {
-      quality: 'highestaudio',
-      filter: 'audioonly'
-    });
-    return format?.url || null;
-  } catch (err) {
-    console.error('YouTube audio url error:', err);
+    console.log(`[Renderer] YouTube sesini alıyor: ${videoId}`);
+    const audioUrl = await ipcRenderer.invoke('youtube:get-audio-url', videoId);
+    if (!audioUrl) throw new Error('Main process ses URL döndürmedi');
+    return audioUrl;
+  } catch (error) {
+    console.error('[Renderer] YouTube ses hatası:', error);
     return null;
   }
 }
 
 async function fallbackYoutubeSearch(query) {
   try {
-    const res = await axios.get('https://www.youtube.com/results', {
-      params: { search_query: query },
-      headers: {
-        'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
-        'User-Agent': 'Mozilla/5.0 Hominify'
-      }
-    });
-
-    const html = res.data;
-    const match = html.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
-    if (!match) return null;
-    return match[1];
-  } catch (err) {
-    console.error('YouTube fallback search error:', err);
+    console.log(`[Renderer] YouTube araması: ${query}`);
+    const videoId = await ipcRenderer.invoke('youtube:search', query);
+    return videoId;
+  } catch (error) {
+    console.error('[Renderer] YouTube arama hatası:', error);
     return null;
   }
 }
 
 async function searchYoutubeForTrack(track) {
-  const query = `${track.title} ${track.artist}`;
+  if (!track) return null;
 
-  // Önce YouTube Data API'yi dene
-  try {
-    if (process.env.YOUTUBE_API_KEY) {
-      const res = await axios.get('https://www.googleapis.com/youtube/v3/search', {
-        params: {
-          part: 'snippet',
-          q: query,
-          maxResults: 1,
-          type: 'video',
-          key: process.env.YOUTUBE_API_KEY
-        }
-      });
+  const query = `${track.title} ${track.artist}`.trim();
 
-      const items = res.data.items || [];
-      if (items.length) {
-        const videoId = items[0].id.videoId;
-        track.youtubeId = videoId;
-        return await getYoutubeAudioUrl(videoId);
-      }
-    }
-  } catch (err) {
-    console.error('YouTube API search error:', err.response?.data || err);
+  console.log(`[Renderer] YouTube'da aranıyor: ${query}`);
+  const videoId = await fallbackYoutubeSearch(query);
+
+  if (videoId) {
+    track.youtubeId = videoId;
+    appState.currentVideoId = videoId;
+    return videoId;
   }
-
-  // API başarısızsa HTML fallback kullan
-  const fallbackId = await fallbackYoutubeSearch(query);
-  if (!fallbackId) return null;
-  track.youtubeId = fallbackId;
-  return await getYoutubeAudioUrl(fallbackId);
-}
-
-async function resolveTrackAudioUrl(track) {
-  if (track.previewUrl) return track.previewUrl;
-
-  if (track.youtubeAudioUrl) return track.youtubeAudioUrl;
-
-  if (track.youtubeId) {
-    const url = await getYoutubeAudioUrl(track.youtubeId);
-    track.youtubeAudioUrl = url;
-    return url;
-  }
-
-  const url = await searchYoutubeForTrack(track);
-  track.youtubeAudioUrl = url;
-  return url;
-}
-
-async function playTrack(track) {
-  if (!track) return;
-
-  appState.currentTrack = track;
-  updatePlayerUI(track);
-
-  const audioUrl = await resolveTrackAudioUrl(track);
-  if (!audioUrl) {
-    console.error('Bu şarkı için ses kaynağı bulunamadı');
-    return;
-  }
-
-  try {
-    appState.audioElement.src = audioUrl;
-    appState.audioElement.volume = appState.volume;
-    await appState.audioElement.play();
-    appState.isPlaying = true;
-    updatePlayPauseButton();
-  } catch (err) {
-    console.error('Şarkı çalınamadı:', err);
-  }
+  return null;
 }
 
 function playTrackAtIndex(index) {
@@ -654,6 +640,89 @@ function playTrackAtIndex(index) {
   appState.currentTrackIndex = index;
   const track = appState.queue[index];
   playTrack(track);
+}
+
+async function playTrack(track) {
+  if (!track) return;
+
+  // Geçişlerde yarış durumunu engellemek için token üret
+  const playToken = Symbol('play');
+  appState.playToken = playToken;
+
+  appState.currentTrack = track;
+  updatePlayerUI(track);
+
+  try {
+    let src = null;
+
+    if (track.previewUrl) {
+      src = track.previewUrl;
+      appState.currentVideoId = null;
+    } else {
+      let videoId = track.youtubeId || null;
+      if (!videoId) {
+        videoId = await searchYoutubeForTrack(track);
+      }
+
+      // Bu arada başka bir şarkıya geçildiyse iptal et
+      if (appState.playToken !== playToken) return;
+
+      if (videoId) {
+        const audioUrl = await getYoutubeAudioUrl(videoId);
+
+        // Bu arada başka bir şarkıya geçildiyse iptal et
+        if (appState.playToken !== playToken) return;
+
+        if (audioUrl) {
+          src = audioUrl;
+        }
+      }
+    }
+
+    if (!src) {
+      throw new Error('Akış URL bulunamadı');
+    }
+
+    // Bu arada başka bir şarkıya geçildiyse iptal et
+    if (appState.playToken !== playToken) return;
+
+    // Mevcut oynatımı sıfırla
+    appState.audioElement.pause();
+    appState.audioElement.currentTime = 0;
+    appState.audioElement.src = '';
+    appState.audioElement.src = src;
+    appState.audioElement.volume = appState.volume;
+
+    // Token hâlâ geçerli mi kontrol et
+    if (appState.playToken !== playToken) return;
+
+    // Kısa bir gecikme sonra play et (src yüklenmesi için)
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Token hâlâ geçerli mi kontrol et
+    if (appState.playToken !== playToken) return;
+
+    try {
+      const playPromise = appState.audioElement.play();
+      if (playPromise !== undefined && playPromise !== null) {
+        try {
+          await playPromise;
+        } catch (playPromiseErr) {
+          console.warn('Play promise reddedildi (ancak devam ediliyor):', playPromiseErr.message);
+        }
+      }
+      appState.isPlaying = true;
+      updatePlayPauseButton();
+    } catch (playErr) {
+      console.error('Play reddedildi/başarısız:', playErr.message);
+      appState.isPlaying = false;
+      updatePlayPauseButton();
+    }
+  } catch (err) {
+    console.error('Şarkı çalınamadı:', err);
+    appState.isPlaying = false;
+    updatePlayPauseButton();
+  }
 }
 
 function togglePlayPause() {
@@ -756,44 +825,7 @@ async function downloadCurrentTrack() {
     console.error('İndirilecek aktif bir şarkı yok');
     return;
   }
-
-  // İlgili YouTube kimliğini veya ses URL'sini çöz
-  if (!track.youtubeId && !track.youtubeAudioUrl && !track.previewUrl) {
-    await resolveTrackAudioUrl(track);
-  }
-
-  const videoId = track.youtubeId;
-  if (!videoId) {
-    console.error('Bu şarkı için YouTube kaynağı bulunamadı, indirilemiyor');
-    return;
-  }
-
-  const downloadsDir = path.join(os.homedir(), 'HominifyDownloads');
-  if (!fs.existsSync(downloadsDir)) {
-    fs.mkdirSync(downloadsDir, { recursive: true });
-  }
-
-  const safeName = `${track.title} - ${track.artist}`.replace(/[<>:"/\\|?*]+/g, '_');
-  const filePath = path.join(downloadsDir, `${safeName}.mp3`);
-
-  try {
-    const writeStream = fs.createWriteStream(filePath);
-
-    await new Promise((resolve, reject) => {
-      ytdl(`https://www.youtube.com/watch?v=${videoId}`, {
-        filter: 'audioonly',
-        quality: 'highestaudio'
-      })
-        .pipe(writeStream);
-
-      writeStream.on('finish', resolve);
-      writeStream.on('error', reject);
-    });
-
-    console.log('Şarkı indirildi:', filePath);
-  } catch (err) {
-    console.error('İndirme hatası:', err);
-  }
+  await downloadTrack(track);
 }
 
 async function searchYoutubeByQuery(query) {
@@ -859,9 +891,52 @@ function initPlayer() {
   const audio = appState.audioElement;
   if (!audio) return;
 
+  // Temel event listeners
   audio.addEventListener('timeupdate', updateProgress);
   audio.addEventListener('ended', handleTrackEnded);
 
+  // Hata ve yükleme event listeners
+  audio.addEventListener('error', (event) => {
+    console.error('[Renderer] Audio element hatası:', event);
+    console.error('[Renderer] Audio error code:', audio.error?.code);
+    console.error('[Renderer] Audio error message:', audio.error?.message);
+    appState.isPlaying = false;
+    updatePlayPauseButton();
+  });
+
+  audio.addEventListener('loadstart', () => {
+    console.log('[Renderer] Audio yükleme başladı');
+  });
+
+  audio.addEventListener('loadedmetadata', () => {
+    console.log('[Renderer] Audio metadata yüklendi');
+  });
+
+  audio.addEventListener('canplay', () => {
+    console.log('[Renderer] Audio çalınmaya hazır (canplay)');
+  });
+
+  audio.addEventListener('canplaythrough', () => {
+    console.log('[Renderer] Audio tam çalınmaya hazır (canplaythrough)');
+  });
+
+  audio.addEventListener('playing', () => {
+    console.log('[Renderer] Audio oynatıldı');
+  });
+
+  audio.addEventListener('pause', () => {
+    console.log('[Renderer] Audio duraklatıldı');
+  });
+
+  audio.addEventListener('seeking', () => {
+    console.log('[Renderer] Audio aranıyor');
+  });
+
+  audio.addEventListener('seeked', () => {
+    console.log('[Renderer] Audio arama tamamlandı');
+  });
+
+  // Kontrol butonları
   if (elements.playPauseBtn) {
     elements.playPauseBtn.addEventListener('click', togglePlayPause);
   }
@@ -972,6 +1047,73 @@ function exchangeCodeForToken(code, redirectUri) {
   });
 }
 
+async function refreshSpotifyToken() {
+  if (!appState.spotifyRefreshToken) {
+    console.error('Spotify refresh token yok, yeniden giriş gerekli');
+    return false;
+  }
+
+  const clientId = process.env.SPOTIFY_CLIENT_ID;
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+
+  const postData = querystring.stringify({
+    grant_type: 'refresh_token',
+    refresh_token: appState.spotifyRefreshToken,
+    client_id: clientId,
+    client_secret: clientSecret
+  });
+
+  const options = {
+    hostname: 'accounts.spotify.com',
+    port: 443,
+    path: '/api/token',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Length': Buffer.byteLength(postData)
+    }
+  };
+
+  try {
+    const tokens = await new Promise((resolve, reject) => {
+      const req = https.request(options, res => {
+        let data = '';
+        res.on('data', chunk => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(data);
+            if (res.statusCode >= 200 && res.statusCode < 300) {
+              resolve(json);
+            } else {
+              reject(new Error(json.error || 'Spotify refresh token error'));
+            }
+          } catch (e) {
+            reject(e);
+          }
+        });
+      });
+
+      req.on('error', reject);
+      req.write(postData);
+      req.end();
+    });
+
+    appState.spotifyAccessToken = tokens.access_token;
+    if (tokens.refresh_token) {
+      appState.spotifyRefreshToken = tokens.refresh_token;
+    }
+    appState.spotifyTokenExpiresAt = Date.now() + (tokens.expires_in || 0) * 1000;
+
+    saveSpotifyToStorage();
+    updateSpotifyButton();
+    console.log('Spotify access token yenilendi');
+    return true;
+  } catch (err) {
+    console.error('Spotify refresh token error:', err);
+    return false;
+  }
+}
+
 async function startSpotifyLogin() {
   if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) {
     console.error('Spotify kimlik bilgileri eksik');
@@ -1050,6 +1192,73 @@ async function startSpotifyLogin() {
   }
 }
 
+// Offline şarkıları yükle
+async function loadOfflineTracks() {
+  try {
+    const tracks = await ipcRenderer.invoke('offline:list');
+    appState.offlineTracks = tracks || [];
+    console.log(`[Renderer] ${appState.offlineTracks.length} offline şarkı yüklendi`);
+  } catch (error) {
+    console.error('[Renderer] Offline şarkılar yüklenemedi:', error);
+  }
+}
+
+// Şarkı indir
+async function downloadTrack(track) {
+  if (!track || !appState.currentVideoId) {
+    alert('Şarkı indirilemedi');
+    return;
+  }
+
+  try {
+    console.log(`[Renderer] İndiriliyor: ${track.title}`);
+    const result = await ipcRenderer.invoke('youtube:download', {
+      videoId: appState.currentVideoId,
+      title: track.title,
+      artist: track.artist
+    });
+
+    if (result.success) {
+      alert(`✓ "${track.title}" indirildi!`);
+      await loadOfflineTracks();
+    } else {
+      alert(`✗ İndirme hatası: ${result.error}`);
+    }
+  } catch (error) {
+    console.error('[Renderer] İndirme hatası:', error);
+    alert('İndirme başarısız oldu');
+  }
+}
+
+// Offline şarkı sil
+async function deleteOfflineTrack(filePath) {
+  if (!confirm('Bu şarkıyı silmek istediğine emin misin?')) return;
+
+  try {
+    const result = await ipcRenderer.invoke('offline:delete', filePath);
+    if (result.success) {
+      alert('Şarkı silindi');
+      await loadOfflineTracks();
+    } else {
+      alert(`Silme hatası: ${result.error}`);
+    }
+  } catch (error) {
+    console.error('[Renderer] Silme hatası:', error);
+  }
+}
+
+// Offline şarkı çal
+function playOfflineTrack(filePath) {
+  try {
+    appState.audioElement.src = `file://${filePath}`;
+    appState.audioElement.play();
+    appState.isPlaying = true;
+    updatePlayPauseButton();
+  } catch (error) {
+    console.error('[Renderer] Offline şarkı çalınamadı:', error);
+  }
+}
+
 // Uygulama başlatıldığında
 document.addEventListener('DOMContentLoaded', () => {
   const savedTheme = localStorage.getItem('hominify-theme') || 'dark';
@@ -1060,6 +1269,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   loadSpotifyFromStorage();
   updateSpotifyButton();
+  loadOfflineTracks();
 
   initPlayer();
 
@@ -1073,5 +1283,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (elements.searchInput) {
     elements.searchInput.addEventListener('keydown', handleSearchKey);
+  }
+
+  // Logo'ya tıklayınca ana sayfaya git (scroll top ve Müzik sekmesini aktif et)
+  const logoEl = document.querySelector('.logo');
+  if (logoEl) {
+    logoEl.style.cursor = 'pointer';
+    logoEl.addEventListener('click', (e) => {
+      e.preventDefault();
+      const main = document.querySelector('.main-content');
+      if (main) main.scrollTo({ top: 0, behavior: 'smooth' });
+      // header nav active reset
+      document.querySelectorAll('.header-nav-button').forEach(b => b.classList.remove('active'));
+      const firstNav = document.querySelector('.header-nav-button');
+      if (firstNav) firstNav.classList.add('active');
+    });
   }
 });
