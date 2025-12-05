@@ -684,6 +684,66 @@ function playTrackAtIndex(index) {
   playTrack(track);
 }
 
+// Yerel dosya var mı kontrol et
+async function checkLocalFile(track) {
+  if (!track) return null;
+  
+  try {
+    // Offline tracks listesinde var mı bak
+    const fileName = `${track.title} - ${track.artist}`.replace(/[/\\?%*:|"<>]/g, '-');
+    const offlineTrack = appState.offlineTracks.find(t => t.name === fileName);
+    
+    if (offlineTrack && offlineTrack.path) {
+      // Dosya gerçekten var mı kontrol et
+      if (fs.existsSync(offlineTrack.path)) {
+        return offlineTrack.path;
+      }
+    }
+  } catch (error) {
+    console.log('[Renderer] Yerel dosya kontrol hatası:', error.message);
+  }
+  
+  return null;
+}
+
+// Arka planda şarkıyı indir (sonraki seferlerde hızlı çalması için)
+async function backgroundDownload(track, videoId) {
+  if (!track || !videoId) return;
+  
+  // Zaten indirme yapılıyor mu kontrol et
+  const downloadKey = `${track.title}-${track.artist}`;
+  if (appState.pendingDownloads && appState.pendingDownloads[downloadKey]) {
+    return;
+  }
+  
+  // Pending downloads objesi yoksa oluştur
+  if (!appState.pendingDownloads) {
+    appState.pendingDownloads = {};
+  }
+  
+  appState.pendingDownloads[downloadKey] = true;
+  
+  try {
+    console.log(`[Renderer] Arka planda indiriliyor: ${track.title}`);
+    const result = await ipcRenderer.invoke('youtube:download', {
+      videoId: videoId,
+      title: track.title,
+      artist: track.artist
+    });
+    
+    if (result.success) {
+      console.log(`[Renderer] Arka plan indirme tamamlandı: ${result.path}`);
+      // Offline listesini güncelle
+      await loadOfflineTracks();
+    }
+  } catch (error) {
+    console.error('[Renderer] Arka plan indirme hatası:', error);
+  } finally {
+    delete appState.pendingDownloads[downloadKey];
+  }
+}
+
+
 async function playTrack(track) {
   if (!track) return;
 
@@ -697,10 +757,20 @@ async function playTrack(track) {
   try {
     let src = null;
 
-    if (track.previewUrl) {
+    // 1. Önce yerel dosya var mı kontrol et (en hızlı)
+    const localFile = await checkLocalFile(track);
+    if (localFile) {
+      console.log('[Renderer] Yerel dosyadan çalınıyor:', localFile);
+      src = localFile;
+      appState.currentVideoId = null;
+    }
+    // 2. Spotify preview URL varsa kullan
+    else if (track.previewUrl) {
       src = track.previewUrl;
       appState.currentVideoId = null;
-    } else {
+    } 
+    // 3. YouTube'dan stream yap
+    else {
       let videoId = track.youtubeId || null;
       if (!videoId) {
         videoId = await searchYoutubeForTrack(track);
@@ -717,6 +787,8 @@ async function playTrack(track) {
 
         if (audioUrl) {
           src = audioUrl;
+          // Arka planda indir (sonraki seferlerde hızlı olsun)
+          backgroundDownload(track, videoId);
         }
       }
     }
@@ -737,6 +809,7 @@ async function playTrack(track) {
 
     // Token hâlâ geçerli mi kontrol et
     if (appState.playToken !== playToken) return;
+
 
     // Kısa bir gecikme sonra play et (src yüklenmesi için)
     await new Promise(resolve => setTimeout(resolve, 100));
