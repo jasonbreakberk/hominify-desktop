@@ -33,51 +33,56 @@ const appState = {
 };
 
 // DOM elementleri (güvenli seçimler)
-const _prevIcon = document.querySelector('.fa-step-backward');
-const _nextIcon = document.querySelector('.fa-step-forward');
-const _shuffleIcon = document.querySelector('.fa-random');
-const _repeatIcon = document.querySelector('.fa-redo');
+const _prevIcon = document.querySelector('.fa-backward-step');
+const _nextIcon = document.querySelector('.fa-forward-step');
+const _shuffleIcon = document.querySelector('.fa-shuffle');
+const _repeatIcon = document.querySelector('.fa-repeat');
 const _likeIcon = document.querySelector('.fa-heart');
-const _volumeIcon = document.querySelector('.fa-volume-up');
+const _volumeIcon = document.querySelector('.fa-volume-high');
 
 const elements = {
   // Çalma kontrolleri
-  playPauseBtn: document.querySelector('.play-pause'),
-  prevBtn: _prevIcon ? _prevIcon.parentElement : null,
-  nextBtn: _nextIcon ? _nextIcon.parentElement : null,
-  shuffleBtn: _shuffleIcon ? _shuffleIcon.parentElement : null,
-  repeatBtn: _repeatIcon ? _repeatIcon.parentElement : null,
+  playPauseBtn: document.querySelector('.play-pause-btn') || document.querySelector('.play-pause'),
+  prevBtn: document.getElementById('prev-btn') || (_prevIcon ? _prevIcon.parentElement : null),
+  nextBtn: document.getElementById('next-btn') || (_nextIcon ? _nextIcon.parentElement : null),
+  shuffleBtn: document.getElementById('shuffle-btn') || (_shuffleIcon ? _shuffleIcon.parentElement : null),
+  repeatBtn: document.getElementById('repeat-btn') || (_repeatIcon ? _repeatIcon.parentElement : null),
 
   // Şarkı bilgileri
-  nowPlayingImg: document.querySelector('.now-playing-img'),
-  songTitle: document.querySelector('.song-title'),
-  songArtist: document.querySelector('.song-artist'),
+  nowPlayingImg: document.querySelector('.player-img') || document.querySelector('.now-playing-img'),
+  songTitle: document.querySelector('.player-title') || document.querySelector('.song-title'),
+  songArtist: document.querySelector('.player-artist') || document.querySelector('.song-artist'),
   likeBtn: _likeIcon ? _likeIcon.parentElement : null,
 
   // İlerleme çubuğu
-  progressBar: document.querySelector('.progress-bar'),
-  progress: document.querySelector('.progress'),
-  currentTimeEl: document.querySelector('.time:first-child'),
-  totalTimeEl: document.querySelector('.time:last-child'),
+  progressBar: document.getElementById('progress-bar') || document.querySelector('.progress-bar'),
+  progress: document.getElementById('progress') || document.querySelector('.progress'),
+  currentTimeEl: document.getElementById('current-time') || document.querySelector('.time:first-child'),
+  totalTimeEl: document.getElementById('total-time') || document.querySelector('.time:last-child'),
 
   // Ses kontrolü
-  volumeBtn: _volumeIcon ? _volumeIcon.parentElement : null,
-  volumeSlider: document.querySelector('.volume-slider'),
+  volumeBtn: document.getElementById('volume-btn') || (_volumeIcon ? _volumeIcon.parentElement : null),
+  volumeSlider: document.getElementById('volume-slider') || document.querySelector('.volume-slider'),
 
   // Arama çubuğu
   searchInput: document.querySelector('.search-bar input'),
 
   // Spotify
-  spotifyLoginBtn: document.querySelector('.spotify-login-btn'),
+  spotifyLoginBtn: document.getElementById('spotify-login') || document.querySelector('.spotify-login-btn'),
   spotifyLoginText: document.querySelector('.spotify-login-text'),
-  downloadBtn: document.querySelector('.download-btn'),
-  userAvatar: document.querySelector('.user-avatar'),
+  downloadBtn: document.getElementById('download-btn') || document.querySelector('.download-btn'),
+  userAvatar: document.getElementById('user-avatar') || document.querySelector('.user-avatar'),
 
   // Kitaplık & gridler
   libraryList: document.getElementById('library-list'),
   likedGrid: document.getElementById('liked-tracks'),
   playlistsGrid: document.getElementById('playlists-grid'),
-  mainSectionTitle: document.querySelector('.section .section-title'),
+  mainSectionTitle: document.getElementById('main-section-title') || document.querySelector('.section .section-title'),
+
+  // Sağ panel
+  nowPlayingImgLarge: document.getElementById('now-playing-img-large'),
+  nowPlayingTitleLarge: document.getElementById('now-playing-title-large'),
+  nowPlayingArtistLarge: document.getElementById('now-playing-artist-large'),
 
   // Ana içerik alanı
   cards: document.querySelectorAll('.card')
@@ -578,6 +583,17 @@ function updatePlayerUI(track) {
   if (elements.songArtist) elements.songArtist.textContent = track.artist;
   if (elements.nowPlayingImg && track.image) {
     elements.nowPlayingImg.src = track.image;
+  }
+
+  // Sağ panel güncellemesi
+  if (elements.nowPlayingImgLarge && track.image) {
+    elements.nowPlayingImgLarge.src = track.image;
+  }
+  if (elements.nowPlayingTitleLarge) {
+    elements.nowPlayingTitleLarge.textContent = track.title;
+  }
+  if (elements.nowPlayingArtistLarge) {
+    elements.nowPlayingArtistLarge.textContent = track.artist;
   }
 }
 
