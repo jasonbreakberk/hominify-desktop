@@ -925,6 +925,271 @@
       .sidebar { display: none; }
       .quick-picks { grid-template-columns: repeat(2, 1fr); }
     }
+
+    /* Window Controls */
+    .window-controls {
+      display: flex;
+      gap: 4px;
+      margin-left: 16px;
+      -webkit-app-region: no-drag;
+    }
+
+    .window-ctrl {
+      width: 36px;
+      height: 28px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      transition: all 0.15s;
+      border-radius: 4px;
+    }
+
+    .window-ctrl:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .window-ctrl.close:hover {
+      background: #e81123;
+      color: white;
+    }
+
+    /* Splash Screen */
+    .splash-screen {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: var(--bg-primary);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      animation: splashFadeOut 0.5s ease-out 2s forwards;
+    }
+
+    .splash-logo {
+      font-size: 64px;
+      animation: splashPulse 1s ease-in-out infinite;
+    }
+
+    .splash-title {
+      font-size: 36px;
+      font-weight: 700;
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-top: 16px;
+    }
+
+    .splash-loading {
+      margin-top: 32px;
+      width: 200px;
+      height: 4px;
+      background: var(--bg-tertiary);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .splash-loading-bar {
+      width: 0%;
+      height: 100%;
+      background: var(--gradient-primary);
+      animation: splashLoad 2s ease-out forwards;
+    }
+
+    @keyframes splashPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+
+    @keyframes splashLoad {
+      0% { width: 0%; }
+      100% { width: 100%; }
+    }
+
+    @keyframes splashFadeOut {
+      to { opacity: 0; pointer-events: none; }
+    }
+
+    /* Settings Modal */
+    .settings-modal {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .settings-modal.active { display: flex; }
+
+    .settings-content {
+      width: 90%;
+      max-width: 600px;
+      max-height: 80vh;
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .settings-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .settings-header h2 {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .settings-close {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 20px;
+      cursor: pointer;
+    }
+
+    .settings-close:hover { color: var(--text-primary); }
+
+    .settings-body {
+      padding: 24px;
+      overflow-y: auto;
+      max-height: calc(80vh - 70px);
+    }
+
+    .settings-section {
+      margin-bottom: 24px;
+    }
+
+    .settings-section h3 {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .settings-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .settings-item:last-child { border-bottom: none; }
+
+    .settings-item-label {
+      font-size: 14px;
+    }
+
+    .settings-item-value {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .settings-select {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .settings-select:focus {
+      outline: none;
+      border-color: var(--accent-purple);
+    }
+
+    /* Download Notification */
+    .download-notification {
+      position: fixed;
+      bottom: 110px;
+      right: 20px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px 20px;
+      max-width: 350px;
+      display: none;
+      animation: slideIn 0.3s ease-out;
+      z-index: 500;
+    }
+
+    .download-notification.active { display: block; }
+
+    .download-notification-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .download-notification-path {
+      font-size: 12px;
+      color: var(--text-secondary);
+      word-break: break-all;
+    }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Lyrics Panel */
+    .lyrics-full-panel {
+      position: fixed;
+      top: var(--header-height);
+      right: 0;
+      width: var(--right-panel-width);
+      height: calc(100vh - var(--header-height) - var(--player-height));
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      display: none;
+      flex-direction: column;
+      z-index: 100;
+      padding: 24px;
+      overflow-y: auto;
+    }
+
+    .lyrics-full-panel.active { display: flex; }
+
+    .lyrics-full-panel h3 {
+      font-size: 16px;
+      margin-bottom: 20px;
+    }
+
+    .lyrics-line {
+      font-size: 18px;
+      line-height: 2;
+      color: var(--text-secondary);
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+
+    .lyrics-line:hover { color: var(--text-primary); }
+
+    .lyrics-line.active {
+      color: var(--text-primary);
+      font-weight: 600;
+      transform: scale(1.02);
+    }
   </style>
 </head>
 <body>
@@ -1003,6 +1268,17 @@
           <i class="fab fa-spotify"></i>
           <span class="spotify-login-text">Giriş Yap</span>
         </button>
+        <div class="window-controls">
+          <button class="window-ctrl" id="minimize-btn" title="Küçült">
+            <i class="fas fa-minus"></i>
+          </button>
+          <button class="window-ctrl" id="maximize-btn" title="Büyüt">
+            <i class="far fa-square"></i>
+          </button>
+          <button class="window-ctrl close" id="close-btn" title="Kapat">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
       </div>
     </header>
 
@@ -1129,6 +1405,92 @@
           <input type="range" class="volume-slider" id="volume-slider" min="0" max="100" value="70">
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Splash Screen -->
+  <div class="splash-screen" id="splash-screen">
+    <div class="splash-logo">🎵</div>
+    <div class="splash-title">Hominify</div>
+    <div class="splash-loading">
+      <div class="splash-loading-bar"></div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="settings-modal" id="settings-modal">
+    <div class="settings-content">
+      <div class="settings-header">
+        <h2>Ayarlar</h2>
+        <button class="settings-close" id="settings-close">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="settings-body">
+        <div class="settings-section">
+          <h3>Görünüm</h3>
+          <div class="settings-item">
+            <span class="settings-item-label">Tema</span>
+            <select class="settings-select" id="theme-select">
+              <option value="dark">Koyu</option>
+              <option value="light">Açık</option>
+            </select>
+          </div>
+          <div class="settings-item">
+            <span class="settings-item-label">Dil</span>
+            <select class="settings-select" id="lang-select">
+              <option value="tr">Türkçe</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+        </div>
+        <div class="settings-section">
+          <h3>Oynatma</h3>
+          <div class="settings-item">
+            <span class="settings-item-label">Ses kalitesi</span>
+            <select class="settings-select" id="quality-select">
+              <option value="high">Yüksek (192kbps)</option>
+              <option value="normal">Normal (128kbps)</option>
+              <option value="low">Düşük (64kbps)</option>
+            </select>
+          </div>
+        </div>
+        <div class="settings-section">
+          <h3>İndirmeler</h3>
+          <div class="settings-item">
+            <span class="settings-item-label">İndirme klasörü</span>
+            <span class="settings-item-value" id="download-path-display">Yükleniyor...</span>
+          </div>
+        </div>
+        <div class="settings-section">
+          <h3>Hakkında</h3>
+          <div class="settings-item">
+            <span class="settings-item-label">Versiyon</span>
+            <span class="settings-item-value">1.0.0</span>
+          </div>
+          <div class="settings-item">
+            <span class="settings-item-label">Geliştirici</span>
+            <span class="settings-item-value">Hominify Team</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Download Notification -->
+  <div class="download-notification" id="download-notification">
+    <div class="download-notification-title">
+      <i class="fas fa-check-circle" style="color: #22c55e; margin-right: 8px;"></i>
+      İndirme tamamlandı!
+    </div>
+    <div class="download-notification-path" id="download-path"></div>
+  </div>
+
+  <!-- Lyrics Panel -->
+  <div class="lyrics-full-panel" id="lyrics-panel">
+    <h3><i class="fas fa-microphone-lines"></i> Şarkı Sözleri</h3>
+    <div id="lyrics-content">
+      <!-- Lyrics will be rendered here -->
     </div>
   </div>
 

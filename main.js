@@ -174,6 +174,8 @@ function createWindow() {
     height: 900,
     minWidth: 1000,
     minHeight: 600,
+    frame: false, // Menü bar kaldırıldı
+    titleBarStyle: 'hidden',
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -182,13 +184,14 @@ function createWindow() {
       allowRunningInsecureContent: false
     },
     icon: path.join(__dirname, 'assets', 'icon.png'),
-    backgroundColor: '#121212',
+    backgroundColor: '#0a0a12',
     show: false
   });
 
   mainWindow.loadFile('index.html');
 
   mainWindow.once('ready-to-show', () => {
+    mainWindow.maximize(); // Tam ekran başlat
     mainWindow.show();
   });
 
@@ -198,6 +201,25 @@ function createWindow() {
     mainWindow = null;
   });
 }
+
+// Pencere kontrolleri için IPC
+ipcMain.on('window:minimize', () => {
+  if (mainWindow) mainWindow.minimize();
+});
+
+ipcMain.on('window:maximize', () => {
+  if (mainWindow) {
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow.maximize();
+    }
+  }
+});
+
+ipcMain.on('window:close', () => {
+  if (mainWindow) mainWindow.close();
+});
 
 // YouTube'dan video arama
 ipcMain.handle('youtube:search', async (event, query) => {

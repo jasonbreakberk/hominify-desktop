@@ -185,23 +185,36 @@ async function fetchSpotifyLikedTracks(isRetry = false) {
   if (!appState.spotifyAccessToken) return [];
 
   try {
-    const res = await axios.get('https://api.spotify.com/v1/me/tracks', {
-      headers: getSpotifyHeaders(),
-      params: {
-        limit: 50
-      }
-    });
+    let allTracks = [];
+    let offset = 0;
+    const limit = 50;
+    let hasMore = true;
 
-    const items = res.data.items || [];
-    appState.likedTracks = items
-      .filter(item => item && item.track)
-      .map(item => mapSpotifyTrack(item.track))
-      .filter(Boolean); // Tüm şarkıları listele; preview yoksa YouTube'a düşer
+    // Pagination ile tüm şarkıları çek
+    while (hasMore) {
+      const res = await axios.get('https://api.spotify.com/v1/me/tracks', {
+        headers: getSpotifyHeaders(),
+        params: { limit, offset }
+      });
 
-    const previewCount = appState.likedTracks.length;
-    console.log(
-      `Beğenilen ${appState.likedTracks.length} şarkı yüklendi. ${previewCount} tanesinde preview_url var.`
-    );
+      const items = res.data.items || [];
+      const tracks = items
+        .filter(item => item && item.track)
+        .map(item => mapSpotifyTrack(item.track))
+        .filter(Boolean);
+
+      allTracks = allTracks.concat(tracks);
+      
+      // Bir sonraki sayfa var mı?
+      hasMore = res.data.next !== null && items.length === limit;
+      offset += limit;
+
+      // Rate limiting için kısa bekle
+      if (hasMore) await new Promise(r => setTimeout(r, 100));
+    }
+
+    appState.likedTracks = allTracks;
+    console.log(`Beğenilen ${appState.likedTracks.length} şarkı yüklendi.`);
 
     renderLikedTracks();
     return appState.likedTracks;
@@ -1320,9 +1333,7 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       const main = document.querySelector('.main-content');
       if (main) main.scrollTo({ top: 0, behavior: 'smooth' });
-      // Beğenilen şarkıları göster
       renderLikedTracks();
-      // Content tab'ları sıfırla
       document.querySelectorAll('.content-tab').forEach(t => t.classList.remove('active'));
       const firstTab = document.querySelector('.content-tab');
       if (firstTab) firstTab.classList.add('active');
@@ -1340,10 +1351,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const likedSection = document.getElementById('liked-section');
       const playlistsSection = document.getElementById('playlists-section');
       
-      if (tabType === 'all') {
-        if (likedSection) likedSection.style.display = 'block';
-        if (playlistsSection) playlistsSection.style.display = 'block';
-      } else if (tabType === 'music') {
+      if (tabType === 'all' || tabType === 'music') {
         if (likedSection) likedSection.style.display = 'block';
         if (playlistsSection) playlistsSection.style.display = 'block';
       } else if (tabType === 'podcasts') {
@@ -1361,5 +1369,161 @@ document.addEventListener('DOMContentLoaded', () => {
       tab.classList.add('active');
     });
   });
+
+  // Pencere kontrolleri
+  const minimizeBtn = document.getElementById('minimize-btn');
+  const maximizeBtn = document.getElementById('maximize-btn');
+  const closeBtn = document.getElementById('close-btn');
+
+  if (minimizeBtn) {
+    minimizeBtn.addEventListener('click', () => {
+      ipcRenderer.send('window:minimize');
+    });
+  }
+
+  if (maximizeBtn) {
+    maximizeBtn.addEventListener('click', () => {
+      ipcRenderer.send('window:maximize');
+    });
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      ipcRenderer.send('window:close');
+    });
+  }
+
+  // Ayarlar modalı
+  const userAvatar = document.getElementById('user-avatar');
+  const settingsModal = document.getElementById('settings-modal');
+  const settingsClose = document.getElementById('settings-close');
+
+  if (userAvatar && settingsModal) {
+    userAvatar.addEventListener('click', () => {
+      settingsModal.classList.add('active');
+    });
+  }
+
+  if (settingsClose && settingsModal) {
+    settingsClose.addEventListener('click', () => {
+      settingsModal.classList.remove('active');
+    });
+  }
+
+  if (settingsModal) {
+    settingsModal.addEventListener('click', (e) => {
+      if (e.target === settingsModal) {
+        settingsModal.classList.remove('active');
+      }
+    });
+  }
+
+  // Şarkı sözleri paneli
+  const lyricsBtn = document.getElementById('lyrics-btn');
+  const lyricsPanel = document.getElementById('lyrics-panel');
+
+  if (lyricsBtn && lyricsPanel) {
+    lyricsBtn.addEventListener('click', () => {
+      lyricsPanel.classList.toggle('active');
+      lyricsBtn.classList.toggle('active');
+      if (lyricsPanel.classList.contains('active') && appState.currentTrack) {
+        fetchLyrics(appState.currentTrack.title, appState.currentTrack.artist);
+      }
+    });
+  }
+
+  // İndirme butonu
+  const downloadBtn = document.getElementById('download-btn');
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', async () => {
+      await downloadCurrentTrackWithNotification();
+    });
+  }
+
+  // Splash screen'i gizle
+  setTimeout(() => {
+    const splash = document.getElementById('splash-screen');
+    if (splash) {
+      splash.style.display = 'none';
+    }
+  }, 2500);
 });
 
+// İndirme fonksiyonu (bildirim ile)
+async function downloadCurrentTrackWithNotification() {
+  const track = appState.currentTrack;
+  if (!track || !appState.currentVideoId) {
+    showNotification('İndirilecek şarkı yok', 'Önce bir şarkı çalın');
+    return;
+  }
+
+  try {
+    console.log(`[Renderer] İndiriliyor: ${track.title}`);
+    const result = await ipcRenderer.invoke('youtube:download', {
+      videoId: appState.currentVideoId,
+      title: track.title,
+      artist: track.artist
+    });
+
+    if (result.success) {
+      showDownloadNotification(result.path);
+      await loadOfflineTracks();
+    } else {
+      showNotification('İndirme hatası', result.error);
+    }
+  } catch (error) {
+    console.error('[Renderer] İndirme hatası:', error);
+    showNotification('İndirme başarısız', error.message);
+  }
+}
+
+// İndirme bildirimi göster
+function showDownloadNotification(filePath) {
+  const notification = document.getElementById('download-notification');
+  const pathEl = document.getElementById('download-path');
+
+  if (notification && pathEl) {
+    pathEl.textContent = filePath;
+    notification.classList.add('active');
+
+    setTimeout(() => {
+      notification.classList.remove('active');
+    }, 5000);
+  }
+}
+
+// Genel bildirim göster
+function showNotification(title, message) {
+  alert(`${title}: ${message}`);
+}
+
+// Şarkı sözleri çek
+async function fetchLyrics(title, artist) {
+  const lyricsContent = document.getElementById('lyrics-content');
+  if (!lyricsContent) return;
+
+  lyricsContent.innerHTML = '<p style="color: var(--text-secondary);">Şarkı sözleri yükleniyor...</p>';
+
+  try {
+    // Basit bir lyrics API (ücretsiz alternatif)
+    const query = encodeURIComponent(`${title} ${artist}`);
+    const response = await fetch(`https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`);
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.lyrics) {
+        const lines = data.lyrics.split('\n').filter(line => line.trim());
+        lyricsContent.innerHTML = lines.map(line => 
+          `<div class="lyrics-line">${line}</div>`
+        ).join('');
+      } else {
+        lyricsContent.innerHTML = '<p style="color: var(--text-secondary);">Şarkı sözleri bulunamadı.</p>';
+      }
+    } else {
+      lyricsContent.innerHTML = '<p style="color: var(--text-secondary);">Şarkı sözleri bulunamadı.</p>';
+    }
+  } catch (error) {
+    console.error('Lyrics fetch error:', error);
+    lyricsContent.innerHTML = '<p style="color: var(--text-secondary);">Şarkı sözleri yüklenemedi.</p>';
+  }
+}
