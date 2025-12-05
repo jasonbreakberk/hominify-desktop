@@ -29,7 +29,9 @@ const appState = {
   audioServerPort: null,
   spotifyUser: null,
   offlineTracks: [],
-  currentVideoId: null
+  currentVideoId: null,
+  audioUrlCache: {}, // Şarkı URL önbelleği (hızlandırma için)
+  isVideoMode: false // Video modu aktif mi
 };
 
 // DOM elementleri (güvenli seçimler)
@@ -627,9 +629,19 @@ function updatePlayPauseButton() {
 
 async function getYoutubeAudioUrl(videoId) {
   try {
+    // Önbellekte var mı kontrol et
+    if (appState.audioUrlCache[videoId]) {
+      console.log(`[Renderer] Önbellekten URL alındı: ${videoId}`);
+      return appState.audioUrlCache[videoId];
+    }
+
     console.log(`[Renderer] YouTube sesini alıyor: ${videoId}`);
     const audioUrl = await ipcRenderer.invoke('youtube:get-audio-url', videoId);
     if (!audioUrl) throw new Error('Main process ses URL döndürmedi');
+    
+    // Önbelleğe kaydet
+    appState.audioUrlCache[videoId] = audioUrl;
+    
     return audioUrl;
   } catch (error) {
     console.error('[Renderer] YouTube ses hatası:', error);
@@ -1527,3 +1539,114 @@ async function fetchLyrics(title, artist) {
     lyricsContent.innerHTML = '<p style="color: var(--text-secondary);">Şarkı sözleri yüklenemedi.</p>';
   }
 }
+
+// Queue panel render
+function renderQueue() {
+  const queueList = document.getElementById('queue-list');
+  if (!queueList) return;
+
+  if (appState.queue.length === 0) {
+    queueList.innerHTML = '<p style="color: var(--text-secondary); padding: 16px;">Sırada şarkı yok</p>';
+    return;
+  }
+
+  queueList.innerHTML = appState.queue.map((track, index) => `
+    <div class="queue-item ${index === appState.currentTrackIndex ? 'playing' : ''}" data-index="${index}">
+      <img class="queue-item-img" src="${track.image || ''}" alt="${track.title}">
+      <div class="queue-item-info">
+        <div class="queue-item-title">${track.title}</div>
+        <div class="queue-item-artist">${track.artist}</div>
+      </div>
+    </div>
+  `).join('');
+
+  // Queue item tıklama
+  queueList.querySelectorAll('.queue-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const index = parseInt(item.dataset.index);
+      playTrackAtIndex(index);
+      renderQueue();
+    });
+  });
+}
+
+// Queue panel toggle
+function initQueuePanel() {
+  const queueBtn = document.getElementById('queue-btn');
+  const queuePanel = document.getElementById('queue-panel');
+  const queueClose = document.getElementById('queue-close');
+
+  if (queueBtn && queuePanel) {
+    queueBtn.addEventListener('click', () => {
+      queuePanel.classList.toggle('active');
+      queueBtn.classList.toggle('active');
+      if (queuePanel.classList.contains('active')) {
+        renderQueue();
+      }
+    });
+  }
+
+  if (queueClose && queuePanel) {
+    queueClose.addEventListener('click', () => {
+      queuePanel.classList.remove('active');
+      if (queueBtn) queueBtn.classList.remove('active');
+    });
+  }
+}
+
+// Shuffle/Repeat state
+let shuffleMode = false;
+let repeatMode = 'off'; // 'off', 'all', 'one'
+
+// Shuffle toggle
+function initShuffleRepeat() {
+  const shuffleBtn = document.getElementById('shuffle-btn');
+  const repeatBtn = document.getElementById('repeat-btn');
+
+  if (shuffleBtn) {
+    shuffleBtn.addEventListener('click', () => {
+      shuffleMode = !shuffleMode;
+      shuffleBtn.classList.toggle('active', shuffleMode);
+      console.log('Shuffle mode:', shuffleMode);
+    });
+  }
+
+  if (repeatBtn) {
+    repeatBtn.addEventListener('click', () => {
+      if (repeatMode === 'off') {
+        repeatMode = 'all';
+        repeatBtn.classList.add('active');
+        repeatBtn.querySelector('i').className = 'fas fa-repeat';
+      } else if (repeatMode === 'all') {
+        repeatMode = 'one';
+        repeatBtn.querySelector('i').className = 'fas fa-repeat-1';
+      } else {
+        repeatMode = 'off';
+        repeatBtn.classList.remove('active');
+        repeatBtn.querySelector('i').className = 'fas fa-repeat';
+      }
+      console.log('Repeat mode:', repeatMode);
+    });
+  }
+}
+
+// Şarkı bittiğinde kontrol
+function handleTrackEndedWithMode() {
+  if (repeatMode === 'one') {
+    playTrackAtIndex(appState.currentTrackIndex);
+  } else if (shuffleMode) {
+    shufflePlay();
+  } else if (repeatMode === 'all') {
+    playNext();
+  } else {
+    if (appState.currentTrackIndex < appState.queue.length - 1) {
+      playNext();
+    }
+  }
+}
+
+// DOMContentLoaded'a ek init'ler
+document.addEventListener('DOMContentLoaded', () => {
+  initQueuePanel();
+  initShuffleRepeat();
+});
