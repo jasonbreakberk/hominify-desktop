@@ -392,41 +392,42 @@ function renderLibrarySidebar() {
   const container = elements.libraryList;
   container.innerHTML = '';
 
-  const title = document.createElement('h3');
-  title.textContent = 'Kitaplığın';
-  container.appendChild(title);
-
-  const createItem = (iconClass, label, onClick) => {
-    const a = document.createElement('a');
-    a.href = '#';
-    a.className = 'nav-item';
-
-    const icon = document.createElement('i');
-    icon.className = iconClass;
-    a.appendChild(icon);
-
-    const span = document.createElement('span');
-    span.textContent = label;
-    a.appendChild(span);
-
-    a.addEventListener('click', e => {
-      e.preventDefault();
-      container.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-      a.classList.add('active');
-      if (onClick) onClick();
-    });
-
-    container.appendChild(a);
-  };
-
-  createItem('fas fa-heart', `Beğenilen Şarkılar (${appState.likedTracks.length})`, () => {
+  // Beğenilen şarkılar öğesi
+  const likedItem = document.createElement('div');
+  likedItem.className = 'playlist-item';
+  likedItem.innerHTML = `
+    <div class="playlist-img liked">
+      <i class="fas fa-heart" style="color: white; font-size: 20px;"></i>
+    </div>
+    <div class="playlist-info">
+      <div class="playlist-name">Beğenilen Şarkılar</div>
+      <div class="playlist-meta">Çalma listesi • ${appState.likedTracks.length} şarkı</div>
+    </div>
+  `;
+  likedItem.addEventListener('click', () => {
+    container.querySelectorAll('.playlist-item').forEach(item => item.classList.remove('active'));
+    likedItem.classList.add('active');
     renderLikedTracks();
   });
+  container.appendChild(likedItem);
 
+  // Çalma listeleri
   appState.playlists.forEach(playlist => {
-    createItem('fas fa-music', playlist.name, () => {
+    const item = document.createElement('div');
+    item.className = 'playlist-item';
+    item.innerHTML = `
+      <img class="playlist-img" src="${playlist.image || ''}" alt="${playlist.name}">
+      <div class="playlist-info">
+        <div class="playlist-name">${playlist.name}</div>
+        <div class="playlist-meta">Çalma listesi • ${playlist.tracksTotal} şarkı</div>
+      </div>
+    `;
+    item.addEventListener('click', () => {
+      container.querySelectorAll('.playlist-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
       fetchSpotifyPlaylistTracks(playlist.id, playlist.name);
     });
+    container.appendChild(item);
   });
 }
 
@@ -756,7 +757,7 @@ function togglePlayPause() {
 }
 
 function formatTime(seconds) {
-  if (!seconds || Number.isNaN(seconds)) return '0:00';
+  if (!seconds || !isFinite(seconds) || Number.isNaN(seconds)) return '0:00';
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
@@ -795,6 +796,11 @@ function setVolume(e) {
   const value = Number(e.target.value) / 100;
   appState.volume = value;
   appState.audioElement.volume = value;
+  // Slider arka planını güncelle
+  if (elements.volumeSlider) {
+    const percent = e.target.value;
+    elements.volumeSlider.style.background = `linear-gradient(to right, #8b5cf6 0%, #8b5cf6 ${percent}%, rgba(255,255,255,0.1) ${percent}%)`;
+  }
 }
 
 function handleTrackEnded() {
@@ -1301,18 +1307,59 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.searchInput.addEventListener('keydown', handleSearchKey);
   }
 
-  // Logo'ya tıklayınca ana sayfaya git (scroll top ve Müzik sekmesini aktif et)
-  const logoEl = document.querySelector('.logo');
+  // Ses slider başlangıç değeri
+  if (elements.volumeSlider) {
+    const initialVolume = elements.volumeSlider.value;
+    elements.volumeSlider.style.background = `linear-gradient(to right, #8b5cf6 0%, #8b5cf6 ${initialVolume}%, rgba(255,255,255,0.1) ${initialVolume}%)`;
+  }
+
+  // Logo'ya tıklayınca ana sayfaya git
+  const logoEl = document.getElementById('sidebar-logo');
   if (logoEl) {
-    logoEl.style.cursor = 'pointer';
     logoEl.addEventListener('click', (e) => {
       e.preventDefault();
       const main = document.querySelector('.main-content');
       if (main) main.scrollTo({ top: 0, behavior: 'smooth' });
-      // header nav active reset
-      document.querySelectorAll('.header-nav-button').forEach(b => b.classList.remove('active'));
-      const firstNav = document.querySelector('.header-nav-button');
-      if (firstNav) firstNav.classList.add('active');
+      // Beğenilen şarkıları göster
+      renderLikedTracks();
+      // Content tab'ları sıfırla
+      document.querySelectorAll('.content-tab').forEach(t => t.classList.remove('active'));
+      const firstTab = document.querySelector('.content-tab');
+      if (firstTab) firstTab.classList.add('active');
     });
   }
+
+  // Content tab'ları (Tümü, Müzik, Podcast'ler)
+  const contentTabs = document.querySelectorAll('.content-tab');
+  contentTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      contentTabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      
+      const tabType = tab.dataset.tab;
+      const likedSection = document.getElementById('liked-section');
+      const playlistsSection = document.getElementById('playlists-section');
+      
+      if (tabType === 'all') {
+        if (likedSection) likedSection.style.display = 'block';
+        if (playlistsSection) playlistsSection.style.display = 'block';
+      } else if (tabType === 'music') {
+        if (likedSection) likedSection.style.display = 'block';
+        if (playlistsSection) playlistsSection.style.display = 'block';
+      } else if (tabType === 'podcasts') {
+        if (likedSection) likedSection.style.display = 'none';
+        if (playlistsSection) playlistsSection.style.display = 'none';
+      }
+    });
+  });
+
+  // Sidebar tab'ları
+  const sidebarTabs = document.querySelectorAll('.sidebar-tab');
+  sidebarTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      sidebarTabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+    });
+  });
 });
+
